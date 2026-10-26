@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>VibeSim — simulación por descripción</title>
+<meta name="description" content="VibeSim ejecuta la simulación de una máquina a partir de una breve descripción escrita. Escribe una escena, pulsa Ejecutar y mira cómo se mueve un brazo con servos en tu navegador." />
+<meta name="theme-color" content="#0a0d10" />
+<link rel="canonical" href="https://vibesim.commandagi.app/es/" />
+<link rel="alternate" hreflang="en" href="https://vibesim.commandagi.app/" />
+<link rel="alternate" hreflang="es" href="https://vibesim.commandagi.app/es/" />
+<link rel="alternate" hreflang="zh-Hans" href="https://vibesim.commandagi.app/zh-Hans/" />
+<link rel="icon" href="../mark.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="../style.css" />
+</head>
+<body>
+<a class="skip" href="#lab">Ir al laboratorio</a>
+<header class="bar">
+  <a class="brand" href="./"><img class="brand__mark" src="../mark.svg" alt="" width="26" height="26" /><span class="brand__word">VibeSim</span></a>
+  <nav class="bar__nav" aria-label="Principal">
+    <a href="#lab">Laboratorio</a>
+    <a href="docs/">Documentación</a>
+    <a href="#contact">Contacto</a>
+  </nav>
+</header>
+
+<main>
+  <section class="hero wrap">
+    <p class="kicker">Simulación por descripción</p>
+    <h1>Describe una máquina.<br />Mírala funcionar.</h1>
+    <p class="lede">VibeSim convierte una breve descripción escrita de un robot en una simulación en marcha: las articulaciones, los servos, la carga, el objetivo. Sin modelos que descargar ni licencias que firmar. La descripción es la escena.</p>
+    <p class="actions"><a class="go" href="#lab">Abrir el banco de pruebas</a><a class="quiet" href="docs/">Leer el formato de la descripción</a></p>
+  </section>
+
+  <section class="labwrap wrap" id="lab">
+    <div class="lab">
+      <div class="lab__stage">
+        <canvas id="stage" width="880" height="560" aria-label="El brazo simulado, dibujado a partir de la descripción" role="img"></canvas>
+        <p class="lab__hud" id="hud" aria-live="polite">Pose de reposo.</p>
+      </div>
+      <div class="lab__side">
+        <div class="lab__presets" role="group" aria-label="Descripciones de ejemplo">
+          <button type="button" class="pill" data-preset="reach">Alcanzar</button>
+          <button type="button" class="pill" data-preset="pick">Coger y dejar</button>
+          <button type="button" class="pill" data-preset="unreachable">Fuera de alcance</button>
+        </div>
+        <label class="lab__label" for="scene">La descripción</label>
+        <textarea id="scene" class="lab__scene" spellcheck="false" rows="12" aria-describedby="scene-help"></textarea>
+        <p class="lab__help" id="scene-help">Apunta la punta de la herramienta (milímetros), indica qué sujeta la pinza y los servos hacen el resto.</p>
+        <div class="lab__actions">
+          <button type="button" class="go go--inline" id="run">Ejecutar</button>
+          <button type="button" class="quiet quiet--inline" id="step">Paso</button>
+          <button type="button" class="quiet quiet--inline" id="reset">Reiniciar</button>
+          <span class="lab__status" id="status" role="status"></span>
+        </div>
+        <p class="lab__note">La simulación se ejecuta en esta pestaña. La página no envía nada.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap band">
+    <h2>Qué dice la descripción</h2>
+    <ul class="cards">
+      <li class="card"><h3>La máquina</h3><p>Qué brazo es y dónde empieza cada articulación. El banco modela los rangos de articulación y los límites de servo publicados del SO-101.</p></li>
+      <li class="card"><h3>El objetivo</h3><p>El punto del espacio que debe alcanzar la herramienta, en milímetros. La cinemática inversa encuentra los ángulos que llegan allí, dentro de sus rangos.</p></li>
+      <li class="card"><h3>La carga</h3><p>Qué sujeta la pinza, en gramos. La gravedad y la carga aparecen como par en cada servo de la cadena.</p></li>
+    </ul>
+  </section>
+
+  <section class="wrap band">
+    <h2>Cómo funciona</h2>
+    <ol class="steps">
+      <li><strong>Escríbela.</strong> Una descripción JSON: la máquina, la pose inicial, el objetivo, la carga.</li>
+      <li><strong>Ejecútala.</strong> El motor resuelve los ángulos de las articulaciones y avanza cada servo a mil pasos por segundo hasta que el brazo se detiene.</li>
+      <li><strong>Léela.</strong> El banco informa dónde terminó la herramienta, cuánto tardó y el mayor par que usó un servo.</li>
+    </ol>
+    <p class="small">El motor está copiado del núcleo de simulación de CommandAGI: el mismo modelo de robot, el mismo paso de servo, la misma cinemática inversa. Una escena y sus comandos determinan por completo una ejecución.</p>
+  </section>
+
+  <section class="wrap band" id="contact">
+    <h2>Hablemos</h2>
+    <p>Cuéntanos qué quieres simular: <a href="mailto:hello@vibesim.pro">hello@vibesim.pro</a>. VibeSim es una empresa de CommandAGI.</p>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="wrap foot__row">
+    <p>VibeSim · simulación por descripción · <a href="mailto:hello@vibesim.pro">hello@vibesim.pro</a></p>
+    <div class="lang">
+      <button type="button" class="lang-btn" commandfor="lang-dialog" command="show-modal" aria-haspopup="dialog" aria-label="Idioma" title="Idioma"><span class="lang-btn__glyph" aria-hidden="true">A<span>/</span><span lang="zh-Hans">文</span></span></button>
+      <noscript><nav class="lang-links" aria-label="Idiomas"><a href="/" hreflang="en"><span lang="en">English</span></a> <a href="/zh-Hans/" hreflang="zh-Hans"><span lang="zh-Hans">简体中文</span></a></nav></noscript>
+      <dialog id="lang-dialog" class="lang-dialog" aria-labelledby="lang-dialog-title">
+        <div class="lang-dialog__box">
+          <div class="lang-dialog__head"><h2 id="lang-dialog-title">Idioma</h2><form method="dialog"><button class="lang-dialog__close" aria-label="Cerrar">✕</button></form></div>
+          <ul class="lang-list">
+            <li><a href="/" hreflang="en"><span lang="en">English</span></a></li>
+            <li><a href="./" hreflang="es" aria-current="true" autofocus><span lang="es">Español</span></a></li>
+            <li><a href="/zh-Hans/" hreflang="zh-Hans"><span lang="zh-Hans">简体中文</span></a></li>
+          </ul>
+        </div>
+      </dialog>
+    </div>
+  </div>
+</footer>
+
+<script type="module" src="../lab/lab.js"></script>
+</body>
+</html>

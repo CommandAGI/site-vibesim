@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>VibeSim — el formato de la descripción</title>
+<meta name="description" content="La descripción de VibeSim: la máquina, su pose inicial, el punto que debe alcanzar la herramienta y la carga. Un objeto JSON, ejecutado en el navegador." />
+<meta name="theme-color" content="#0a0d10" />
+<link rel="canonical" href="https://vibesim.commandagi.app/es/docs/" />
+<link rel="alternate" hreflang="en" href="https://vibesim.commandagi.app/docs/" />
+<link rel="alternate" hreflang="es" href="https://vibesim.commandagi.app/es/docs/" />
+<link rel="alternate" hreflang="zh-Hans" href="https://vibesim.commandagi.app/zh-Hans/docs/" />
+<link rel="icon" href="../../mark.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="../../style.css" />
+</head>
+<body>
+<a class="skip" href="#doc">Ir al documento</a>
+<header class="bar">
+  <a class="brand" href="../"><img class="brand__mark" src="../../mark.svg" alt="" width="26" height="26" /><span class="brand__word">VibeSim</span></a>
+  <nav class="bar__nav" aria-label="Principal">
+    <a href="../#lab">Laboratorio</a>
+    <a href="./">Documentación</a>
+    <a href="../#contact">Contacto</a>
+  </nav>
+</header>
+
+<main class="wrap doc" id="doc">
+  <h1>El formato de la descripción</h1>
+  <p class="lede">Una descripción de VibeSim es un objeto JSON. Nombra la máquina, dónde empieza cada articulación, el punto que debe alcanzar la herramienta y qué sujeta la pinza. El banco la lee y la ejecuta.</p>
+
+  <h2>Un ejemplo</h2>
+<pre><code>{
+  "machine": "so101",
+  "start": {
+    "shoulder_pan": 0,
+    "shoulder_lift": 0.54,
+    "elbow_flex": 0,
+    "wrist_flex": 0,
+    "wrist_roll": 0,
+    "gripper": 1.74
+  },
+  "goal_mm": [80, -200, 60],
+  "payload_g": 0
+}</code></pre>
+
+  <h2>Los campos</h2>
+  <table>
+    <thead><tr><th>campo</th><th>significado</th></tr></thead>
+    <tbody>
+      <tr><td><code>machine</code></td><td>El brazo. Hoy el banco tiene uno: <code>so101</code>, el SO-101, con los rangos de articulación y los límites de servo de su modelo publicado.</td></tr>
+      <tr><td><code>start</code></td><td>El ángulo inicial de cada articulación, en radianes. Cada uno debe estar dentro del rango de su articulación. Omitir uno es un error: una escena nunca adivina.</td></tr>
+      <tr><td><code>goal_mm</code></td><td>El punto que debe alcanzar la herramienta, en milímetros: <code>[x, y, z]</code>, en el marco del brazo, con z hacia arriba.</td></tr>
+      <tr><td><code>payload_g</code></td><td>Qué sujeta la pinza, en gramos. El motor lo suma al par que la gravedad ya ejerce sobre la cadena.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Qué hace la ejecución</h2>
+  <ol class="steps">
+    <li><strong>Cinemática inversa.</strong> Mínimos cuadrados amortiguados encuentra los ángulos de la cadena que ponen la herramienta en el objetivo, dentro del rango de cada articulación.</li>
+    <li><strong>Paso de servo.</strong> Cada articulación es un servo de posición: par según el error y la velocidad, limitado por el máximo de la articulación, contra la gravedad, la carga, el amortiguamiento y la fricción. Mil pasos por segundo, en subpasos cortos para la rigidez del servo.</li>
+    <li><strong>Reposo.</strong> La ejecución termina cuando cada articulación está a menos de 2 miliradianes de su objetivo y ya no se mueve, o a los seis segundos.</li>
+  </ol>
+
+  <h2>Qué informa el banco</h2>
+  <p>Dónde terminó la herramienta, cuánto tardó el brazo y el mayor par que usó un servo. Cuando un objetivo está fuera de alcance, el banco lo dice y cuánto le faltó: no finge que el brazo llegó.</p>
+
+  <h2>Límites de hoy</h2>
+  <p>Una máquina, objetivos de punto alcanzable, sin colisión con el mundo y sin otra física. El motor es el núcleo de simulación de CommandAGI, copiado en este sitio (<code>engine/</code>), así que una escena y sus comandos determinan por completo una ejecución. Dinos qué máquina quieres después: <a href="mailto:hello@vibesim.pro">hello@vibesim.pro</a>.</p>
+</main>
+
+<footer class="foot">
+  <div class="wrap foot__row">
+    <p>VibeSim · simulación por descripción · <a href="mailto:hello@vibesim.pro">hello@vibesim.pro</a></p>
+    <div class="lang">
+      <button type="button" class="lang-btn" commandfor="lang-dialog" command="show-modal" aria-haspopup="dialog" aria-label="Idioma" title="Idioma"><span class="lang-btn__glyph" aria-hidden="true">A<span>/</span><span lang="zh-Hans">文</span></span></button>
+      <noscript><nav class="lang-links" aria-label="Idiomas"><a href="/docs/" hreflang="en"><span lang="en">English</span></a> <a href="/zh-Hans/docs/" hreflang="zh-Hans"><span lang="zh-Hans">简体中文</span></a></nav></noscript>
+      <dialog id="lang-dialog" class="lang-dialog" aria-labelledby="lang-dialog-title">
+        <div class="lang-dialog__box">
+          <div class="lang-dialog__head"><h2 id="lang-dialog-title">Idioma</h2><form method="dialog"><button class="lang-dialog__close" aria-label="Cerrar">✕</button></form></div>
+          <ul class="lang-list">
+            <li><a href="/docs/" hreflang="en"><span lang="en">English</span></a></li>
+            <li><a href="./" hreflang="es" aria-current="true" autofocus><span lang="es">Español</span></a></li>
+            <li><a href="/zh-Hans/docs/" hreflang="zh-Hans"><span lang="zh-Hans">简体中文</span></a></li>
+          </ul>
+        </div>
+      </dialog>
+    </div>
+  </div>
+</footer>
+</body>
+</html>

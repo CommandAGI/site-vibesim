@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>VibeSim — the description format</title>
+<meta name="description" content="The VibeSim description: the machine, its start pose, the tool point to reach and the payload. One JSON object, run in the browser." />
+<meta name="theme-color" content="#0a0d10" />
+<link rel="canonical" href="https://vibesim.commandagi.app/docs/" />
+<link rel="alternate" hreflang="en" href="https://vibesim.commandagi.app/docs/" />
+<link rel="alternate" hreflang="es" href="https://vibesim.commandagi.app/es/docs/" />
+<link rel="alternate" hreflang="zh-Hans" href="https://vibesim.commandagi.app/zh-Hans/docs/" />
+<link rel="icon" href="../mark.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="../style.css" />
+</head>
+<body>
+<a class="skip" href="#doc">Skip to the document</a>
+<header class="bar">
+  <a class="brand" href="../"><img class="brand__mark" src="../mark.svg" alt="" width="26" height="26" /><span class="brand__word">VibeSim</span></a>
+  <nav class="bar__nav" aria-label="Main">
+    <a href="../#lab">Lab</a>
+    <a href="./">Docs</a>
+    <a href="../#contact">Contact</a>
+  </nav>
+</header>
+
+<main class="wrap doc" id="doc">
+  <h1>The description format</h1>
+  <p class="lede">A VibeSim description is one JSON object. It names the machine, where every joint starts, the point the tool must reach, and what the gripper holds. The bench reads it and runs it.</p>
+
+  <h2>One example</h2>
+<pre><code>{
+  "machine": "so101",
+  "start": {
+    "shoulder_pan": 0,
+    "shoulder_lift": 0.54,
+    "elbow_flex": 0,
+    "wrist_flex": 0,
+    "wrist_roll": 0,
+    "gripper": 1.74
+  },
+  "goal_mm": [80, -200, 60],
+  "payload_g": 0
+}</code></pre>
+
+  <h2>The fields</h2>
+  <table>
+    <thead><tr><th>field</th><th>meaning</th></tr></thead>
+    <tbody>
+      <tr><td><code>machine</code></td><td>The arm. Today the bench has one: <code>so101</code>, the SO-101, with the joint ranges and servo limits of its published model.</td></tr>
+      <tr><td><code>start</code></td><td>Every joint's starting angle, in radians. Each must lie inside that joint's range. Leaving one out is an error, so a scene never guesses.</td></tr>
+      <tr><td><code>goal_mm</code></td><td>The point the tool must reach, in millimetres: <code>[x, y, z]</code>, the arm's own frame, z up.</td></tr>
+      <tr><td><code>payload_g</code></td><td>What the gripper holds, in grams. The engine adds it to the torque gravity already puts on the chain.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>What the run does</h2>
+  <ol class="steps">
+    <li><strong>Inverse kinematics.</strong> Damped least squares finds the chain's angles that put the tool point on the goal, kept inside each joint's range.</li>
+    <li><strong>Servo step.</strong> Each joint is a position servo: torque from the error and speed, capped by the joint's limit, against gravity, the payload, damping and friction. One thousand steps a second, in short substeps for the servo's stiffness.</li>
+    <li><strong>Settle.</strong> The run stops when every joint is within 2 milliradians of its target and every joint has stopped moving, or after six seconds.</li>
+  </ol>
+
+  <h2>What the bench says about a run</h2>
+  <p>Where the tool ended, how long the arm took, and the largest torque any servo used. When a goal is out of reach the bench says so and how far short the tool stopped: it does not pretend the arm got there.</p>
+
+  <h2>Limits today</h2>
+  <p>One machine, reachable-point goals, no collision with the world and no other physics. The engine is CommandAGI's simulation core, copied into this site (<code>engine/</code>), so a scene and its commands fully determine a run. Tell us the machine you want next: <a href="mailto:hello@vibesim.pro">hello@vibesim.pro</a>.</p>
+</main>
+
+<footer class="foot">
+  <div class="wrap foot__row">
+    <p>VibeSim · simulation by description · <a href="mailto:hello@vibesim.pro">hello@vibesim.pro</a></p>
+    <div class="lang">
+      <button type="button" class="lang-btn" commandfor="lang-dialog" command="show-modal" aria-haspopup="dialog" aria-label="Language" title="Language"><span class="lang-btn__glyph" aria-hidden="true">A<span>/</span><span lang="zh-Hans">文</span></span></button>
+      <noscript><nav class="lang-links" aria-label="Languages"><a href="/es/docs/" hreflang="es"><span lang="es">Español</span></a> <a href="/zh-Hans/docs/" hreflang="zh-Hans"><span lang="zh-Hans">简体中文</span></a></nav></noscript>
+      <dialog id="lang-dialog" class="lang-dialog" aria-labelledby="lang-dialog-title">
+        <div class="lang-dialog__box">
+          <div class="lang-dialog__head"><h2 id="lang-dialog-title">Language</h2><form method="dialog"><button class="lang-dialog__close" aria-label="Close">✕</button></form></div>
+          <ul class="lang-list">
+            <li><a href="./" hreflang="en" aria-current="true" autofocus><span lang="en">English</span></a></li>
+            <li><a href="/es/docs/" hreflang="es"><span lang="es">Español</span></a></li>
+            <li><a href="/zh-Hans/docs/" hreflang="zh-Hans"><span lang="zh-Hans">简体中文</span></a></li>
+          </ul>
+        </div>
+      </dialog>
+    </div>
+  </div>
+</footer>
+</body>
+</html>

@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>VibeSim — simulation by description</title>
+<meta name="description" content="VibeSim runs a machine simulation from a short written description. Write a scene, press Run, and watch a servo-driven arm move in your browser." />
+<meta name="theme-color" content="#0a0d10" />
+<link rel="canonical" href="https://vibesim.commandagi.app/" />
+<link rel="alternate" hreflang="en" href="https://vibesim.commandagi.app/" />
+<link rel="alternate" hreflang="es" href="https://vibesim.commandagi.app/es/" />
+<link rel="alternate" hreflang="zh-Hans" href="https://vibesim.commandagi.app/zh-Hans/" />
+<link rel="icon" href="mark.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<a class="skip" href="#lab">Skip to the lab</a>
+<header class="bar">
+  <a class="brand" href="./"><img class="brand__mark" src="mark.svg" alt="" width="26" height="26" /><span class="brand__word">VibeSim</span></a>
+  <nav class="bar__nav" aria-label="Main">
+    <a href="#lab">Lab</a>
+    <a href="docs/">Docs</a>
+    <a href="#contact">Contact</a>
+  </nav>
+</header>
+
+<main>
+  <section class="hero wrap">
+    <p class="kicker">Simulation by description</p>
+    <h1>Describe a machine.<br />Watch it run.</h1>
+    <p class="lede">VibeSim turns a short written description of a robot into a running simulation: the joints, the servos, the payload, the goal. No model to download, no licence to sign. The description is the scene.</p>
+    <p class="actions"><a class="go" href="#lab">Run the bench</a><a class="quiet" href="docs/">Read the description format</a></p>
+  </section>
+
+  <section class="labwrap wrap" id="lab">
+    <div class="lab">
+      <div class="lab__stage">
+        <canvas id="stage" width="880" height="560" aria-label="The simulated arm, drawn from the description" role="img"></canvas>
+        <p class="lab__hud" id="hud" aria-live="polite">Home pose.</p>
+      </div>
+      <div class="lab__side">
+        <div class="lab__presets" role="group" aria-label="Example descriptions">
+          <button type="button" class="pill" data-preset="reach">Reach</button>
+          <button type="button" class="pill" data-preset="pick">Pick and place</button>
+          <button type="button" class="pill" data-preset="unreachable">Out of reach</button>
+        </div>
+        <label class="lab__label" for="scene">The description</label>
+        <textarea id="scene" class="lab__scene" spellcheck="false" rows="12" aria-describedby="scene-help"></textarea>
+        <p class="lab__help" id="scene-help">Aim the tool point (millimetres), say what the gripper holds, and the servos do the rest.</p>
+        <div class="lab__actions">
+          <button type="button" class="go go--inline" id="run">Run</button>
+          <button type="button" class="quiet quiet--inline" id="step">Step</button>
+          <button type="button" class="quiet quiet--inline" id="reset">Reset</button>
+          <span class="lab__status" id="status" role="status"></span>
+        </div>
+        <p class="lab__note">The simulation runs in this browser tab. The page sends nothing.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap band">
+    <h2>What the description says</h2>
+    <ul class="cards">
+      <li class="card"><h3>The machine</h3><p>Which arm, and where every joint starts. The bench models the SO-101's published joint ranges and servo limits.</p></li>
+      <li class="card"><h3>The goal</h3><p>The point in space the tool must reach, in millimetres. Inverse kinematics finds joint angles that get there, inside their ranges.</p></li>
+      <li class="card"><h3>The load</h3><p>What the gripper holds, in grams. Gravity and the payload show up as torque on every servo along the chain.</p></li>
+    </ul>
+  </section>
+
+  <section class="wrap band">
+    <h2>How it works</h2>
+    <ol class="steps">
+      <li><strong>Write it.</strong> One JSON description: the machine, the start pose, the goal, the load.</li>
+      <li><strong>Run it.</strong> The engine solves the joint angles, then steps each servo at one kilohertz until the arm settles.</li>
+      <li><strong>Read it.</strong> The bench reports where the tool ended, how long it took, and the largest torque a servo used.</li>
+    </ol>
+    <p class="small">The engine is copied from CommandAGI's own simulation core: the same robot model, the same servo step, the same inverse kinematics. A scene and its commands fully determine a run.</p>
+  </section>
+
+  <section class="wrap band" id="contact">
+    <h2>Talk to us</h2>
+    <p>Tell us what you want to simulate: <a href="mailto:hello@vibesim.pro">hello@vibesim.pro</a>. VibeSim is a company of CommandAGI.</p>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="wrap foot__row">
+    <p>VibeSim · simulation by description · <a href="mailto:hello@vibesim.pro">hello@vibesim.pro</a></p>
+    <div class="lang">
+      <button type="button" class="lang-btn" commandfor="lang-dialog" command="show-modal" aria-haspopup="dialog" aria-label="Language" title="Language"><span class="lang-btn__glyph" aria-hidden="true">A<span>/</span><span lang="zh-Hans">文</span></span></button>
+      <noscript><nav class="lang-links" aria-label="Languages"><a href="/es/" hreflang="es"><span lang="es">Español</span></a> <a href="/zh-Hans/" hreflang="zh-Hans"><span lang="zh-Hans">简体中文</span></a></nav></noscript>
+      <dialog id="lang-dialog" class="lang-dialog" aria-labelledby="lang-dialog-title">
+        <div class="lang-dialog__box">
+          <div class="lang-dialog__head"><h2 id="lang-dialog-title">Language</h2><form method="dialog"><button class="lang-dialog__close" aria-label="Close">✕</button></form></div>
+          <ul class="lang-list">
+            <li><a href="/" hreflang="en" aria-current="true" autofocus><span lang="en">English</span></a></li>
+            <li><a href="/es/" hreflang="es"><span lang="es">Español</span></a></li>
+            <li><a href="/zh-Hans/" hreflang="zh-Hans"><span lang="zh-Hans">简体中文</span></a></li>
+          </ul>
+        </div>
+      </dialog>
+    </div>
+  </div>
+</footer>
+
+<script type="module" src="lab/lab.js"></script>
+</body>
+</html>

@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>VibeSim — 描述格式</title>
+<meta name="description" content="VibeSim 的描述：机器、初始姿态、工具要到达的点和负载。一个 JSON 对象，在浏览器中运行。" />
+<meta name="theme-color" content="#0a0d10" />
+<link rel="canonical" href="https://vibesim.commandagi.app/zh-Hans/docs/" />
+<link rel="alternate" hreflang="en" href="https://vibesim.commandagi.app/docs/" />
+<link rel="alternate" hreflang="es" href="https://vibesim.commandagi.app/es/docs/" />
+<link rel="alternate" hreflang="zh-Hans" href="https://vibesim.commandagi.app/zh-Hans/docs/" />
+<link rel="icon" href="../../mark.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="../../style.css" />
+</head>
+<body>
+<a class="skip" href="#doc">跳到正文</a>
+<header class="bar">
+  <a class="brand" href="../"><img class="brand__mark" src="../../mark.svg" alt="" width="26" height="26" /><span class="brand__word">VibeSim</span></a>
+  <nav class="bar__nav" aria-label="主导航">
+    <a href="../#lab">实验台</a>
+    <a href="./">文档</a>
+    <a href="../#contact">联系</a>
+  </nav>
+</header>
+
+<main class="wrap doc" id="doc">
+  <h1>描述格式</h1>
+  <p class="lede">VibeSim 的描述是一个 JSON 对象。它写明机器、每个关节的起始位置、工具要到达的点和夹爪夹着什么。实验台读取它并运行。</p>
+
+  <h2>一个例子</h2>
+<pre><code>{
+  "machine": "so101",
+  "start": {
+    "shoulder_pan": 0,
+    "shoulder_lift": 0.54,
+    "elbow_flex": 0,
+    "wrist_flex": 0,
+    "wrist_roll": 0,
+    "gripper": 1.74
+  },
+  "goal_mm": [80, -200, 60],
+  "payload_g": 0
+}</code></pre>
+
+  <h2>字段</h2>
+  <table>
+    <thead><tr><th>字段</th><th>含义</th></tr></thead>
+    <tbody>
+      <tr><td><code>machine</code></td><td>哪条机械臂。目前实验台只有一条：<code>so101</code>，即 SO-101，采用其公布模型的关节范围和舵机限值。</td></tr>
+      <tr><td><code>start</code></td><td>每个关节的起始角度，单位弧度，必须在该关节范围内。缺少一个即为错误：场景从不猜测。</td></tr>
+      <tr><td><code>goal_mm</code></td><td>工具要到达的点，单位毫米：<code>[x, y, z]</code>，机械臂坐标系，z 向上。</td></tr>
+      <tr><td><code>payload_g</code></td><td>夹爪夹着什么，单位克。引擎把它加进重力已经施加在链条上的扭矩。</td></tr>
+    </tbody>
+  </table>
+
+  <h2>一次运行做了什么</h2>
+  <ol class="steps">
+    <li><strong>逆运动学。</strong>阻尼最小二乘法求出让工具点落到目标上的关节角度，并保持在每个关节的范围内。</li>
+    <li><strong>舵机步进。</strong>每个关节是一个位置舵机：扭矩由误差和速度得出，受关节上限限制，并抵消重力、负载、阻尼和摩擦。每秒一千步，按舵机刚度分成更小的子步。</li>
+    <li><strong>静止。</strong>当每个关节距目标小于 2 毫弧度且不再移动时结束，最多六秒。</li>
+  </ol>
+
+  <h2>实验台报告什么</h2>
+  <p>工具最终停在哪里、机械臂用了多久、任何一个舵机使用的最大扭矩。目标不可达时，实验台会说明这一点以及差了多少：不会假装到达。</p>
+
+  <h2>目前的限制</h2>
+  <p>一台机器；点目标；暂不与世界碰撞，也还没有其他物理。引擎是 CommandAGI 的仿真内核，复制到本网站（<code>engine/</code>），因此一段场景和它的指令完全决定一次运行。告诉我们你接下来想要哪台机器：<a href="mailto:hello@vibesim.pro">hello@vibesim.pro</a>。</p>
+</main>
+
+<footer class="foot">
+  <div class="wrap foot__row">
+    <p>VibeSim · 用描述来仿真 · <a href="mailto:hello@vibesim.pro">hello@vibesim.pro</a></p>
+    <div class="lang">
+      <button type="button" class="lang-btn" commandfor="lang-dialog" command="show-modal" aria-haspopup="dialog" aria-label="语言" title="语言"><span class="lang-btn__glyph" aria-hidden="true">A<span>/</span><span lang="zh-Hans">文</span></span></button>
+      <noscript><nav class="lang-links" aria-label="语言"><a href="/docs/" hreflang="en"><span lang="en">English</span></a> <a href="/es/docs/" hreflang="es"><span lang="es">Español</span></a></nav></noscript>
+      <dialog id="lang-dialog" class="lang-dialog" aria-labelledby="lang-dialog-title">
+        <div class="lang-dialog__box">
+          <div class="lang-dialog__head"><h2 id="lang-dialog-title">语言</h2><form method="dialog"><button class="lang-dialog__close" aria-label="关闭">✕</button></form></div>
+          <ul class="lang-list">
+            <li><a href="/docs/" hreflang="en"><span lang="en">English</span></a></li>
+            <li><a href="/es/docs/" hreflang="es"><span lang="es">Español</span></a></li>
+            <li><a href="./" hreflang="zh-Hans" aria-current="true" autofocus><span lang="zh-Hans">简体中文</span></a></li>
+          </ul>
+        </div>
+      </dialog>
+    </div>
+  </div>
+</footer>
+</body>
+</html>

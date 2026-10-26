@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>VibeSim — 用描述来仿真</title>
+<meta name="description" content="VibeSim 依据一段简短的文字描述运行机器仿真。写下场景，点击“运行”，在浏览器里看着舵机驱动的机械臂动起来。" />
+<meta name="theme-color" content="#0a0d10" />
+<link rel="canonical" href="https://vibesim.commandagi.app/zh-Hans/" />
+<link rel="alternate" hreflang="en" href="https://vibesim.commandagi.app/" />
+<link rel="alternate" hreflang="es" href="https://vibesim.commandagi.app/es/" />
+<link rel="alternate" hreflang="zh-Hans" href="https://vibesim.commandagi.app/zh-Hans/" />
+<link rel="icon" href="../mark.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="../style.css" />
+</head>
+<body>
+<a class="skip" href="#lab">跳到实验台</a>
+<header class="bar">
+  <a class="brand" href="./"><img class="brand__mark" src="../mark.svg" alt="" width="26" height="26" /><span class="brand__word">VibeSim</span></a>
+  <nav class="bar__nav" aria-label="主导航">
+    <a href="#lab">实验台</a>
+    <a href="docs/">文档</a>
+    <a href="#contact">联系</a>
+  </nav>
+</header>
+
+<main>
+  <section class="hero wrap">
+    <p class="kicker">用描述来仿真</p>
+    <h1>描述一台机器，<br />看它动起来。</h1>
+    <p class="lede">VibeSim 把一段关于机器人的简短描述变成正在运行的仿真：关节、舵机、负载、目标。不用下载模型，不用签许可。描述就是场景。</p>
+    <p class="actions"><a class="go" href="#lab">打开实验台</a><a class="quiet" href="docs/">查看描述格式</a></p>
+  </section>
+
+  <section class="labwrap wrap" id="lab">
+    <div class="lab">
+      <div class="lab__stage">
+        <canvas id="stage" width="880" height="560" aria-label="按描述绘制的仿真机械臂" role="img"></canvas>
+        <p class="lab__hud" id="hud" aria-live="polite">初始姿态。</p>
+      </div>
+      <div class="lab__side">
+        <div class="lab__presets" role="group" aria-label="示例描述">
+          <button type="button" class="pill" data-preset="reach">伸到目标</button>
+          <button type="button" class="pill" data-preset="pick">抓取并放置</button>
+          <button type="button" class="pill" data-preset="unreachable">超出可达范围</button>
+        </div>
+        <label class="lab__label" for="scene">描述</label>
+        <textarea id="scene" class="lab__scene" spellcheck="false" rows="12" aria-describedby="scene-help"></textarea>
+        <p class="lab__help" id="scene-help">用毫米指定工具点要到达的位置，说明夹爪夹着什么，其余交给舵机。</p>
+        <div class="lab__actions">
+          <button type="button" class="go go--inline" id="run">运行</button>
+          <button type="button" class="quiet quiet--inline" id="step">单步</button>
+          <button type="button" class="quiet quiet--inline" id="reset">复位</button>
+          <span class="lab__status" id="status" role="status"></span>
+        </div>
+        <p class="lab__note">仿真在当前浏览器标签页中运行，页面不发送任何数据。</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap band">
+    <h2>描述里写了什么</h2>
+    <ul class="cards">
+      <li class="card"><h3>机器</h3><p>用哪条机械臂，每个关节从哪里开始。实验台采用 SO-101 公布的关节范围和舵机限值。</p></li>
+      <li class="card"><h3>目标</h3><p>工具要到达的空间点，单位毫米。逆运动学在关节范围内求出到达该点的角度。</p></li>
+      <li class="card"><h3>负载</h3><p>夹爪夹着什么，单位克。重力和负载会体现为链条上每个舵机的扭矩。</p></li>
+    </ul>
+  </section>
+
+  <section class="wrap band">
+    <h2>它是怎么做的</h2>
+    <ol class="steps">
+      <li><strong>写下来。</strong>一段 JSON 描述：机器、初始姿态、目标、负载。</li>
+      <li><strong>跑起来。</strong>引擎先解出关节角度，再以每秒一千步推进每个舵机，直到机械臂停下。</li>
+      <li><strong>读结果。</strong>实验台报告工具停在哪里、用了多久、最大的舵机扭矩是多少。</li>
+    </ol>
+    <p class="small">引擎复制自 CommandAGI 自己的仿真内核：相同的机器人模型、相同的舵机步进、相同的逆运动学。一段场景和它的指令完全决定了一次运行。</p>
+  </section>
+
+  <section class="wrap band" id="contact">
+    <h2>联系我们</h2>
+    <p>告诉我们你想仿真什么：<a href="mailto:hello@vibesim.pro">hello@vibesim.pro</a>。VibeSim 是 CommandAGI 旗下公司。</p>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="wrap foot__row">
+    <p>VibeSim · 用描述来仿真 · <a href="mailto:hello@vibesim.pro">hello@vibesim.pro</a></p>
+    <div class="lang">
+      <button type="button" class="lang-btn" commandfor="lang-dialog" command="show-modal" aria-haspopup="dialog" aria-label="语言" title="语言"><span class="lang-btn__glyph" aria-hidden="true">A<span>/</span><span lang="zh-Hans">文</span></span></button>
+      <noscript><nav class="lang-links" aria-label="语言"><a href="/" hreflang="en"><span lang="en">English</span></a> <a href="/es/" hreflang="es"><span lang="es">Español</span></a></nav></noscript>
+      <dialog id="lang-dialog" class="lang-dialog" aria-labelledby="lang-dialog-title">
+        <div class="lang-dialog__box">
+          <div class="lang-dialog__head"><h2 id="lang-dialog-title">语言</h2><form method="dialog"><button class="lang-dialog__close" aria-label="关闭">✕</button></form></div>
+          <ul class="lang-list">
+            <li><a href="/" hreflang="en"><span lang="en">English</span></a></li>
+            <li><a href="/es/" hreflang="es"><span lang="es">Español</span></a></li>
+            <li><a href="./" hreflang="zh-Hans" aria-current="true" autofocus><span lang="zh-Hans">简体中文</span></a></li>
+          </ul>
+        </div>
+      </dialog>
+    </div>
+  </div>
+</footer>
+
+<script type="module" src="../lab/lab.js"></script>
+</body>
+</html>
