@@ -1,7 +1,8 @@
 # engine: CommandAGI's simulation core, copied
 
-These files are the owner's code, copied verbatim from the CommandAGI repository (commit `79bf3c5b3c`) so the site can
-run a simulation in the browser. Nothing here is rewritten; the relative imports are already the same shape.
+These files are the owner's code, copied verbatim from the CommandAGI repository at revision `289fc50180`
+(2026-10-26; `pose.js` and `motion.js` were re-copied, since they had moved on from `79bf3c5b3c`) so the site can run a
+simulation in the browser. Nothing here is rewritten; the relative imports are already the same shape.
 
 | file | from |
 |---|---|

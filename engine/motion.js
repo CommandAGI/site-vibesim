@@ -19,10 +19,12 @@ import { MAVLINK_VALUES } from './protocols/mavlink.js';
 import { CENTAUR_VALUES } from './protocols/centaur-link.js';
 import { VALUE_KEYS as PRINT_VALUES } from './protocols/printjob.js';
 const AXES6 = ['x', 'y', 'z', 'a', 'b', 'c', 'u', 'v', 'w'];
+// linuxcnc-rsh records the work-frame position as x … c and the joints as jx … jc (protocols/linuxcnc.js): a model's
+// links bind the joints, which are where the axes are with TCP on and off alike.
 const FORMATS = {
     'gcode-chat': { fold: 'machine', names: [...AXES6, 'feed', 'spindle', 'laser', 'feedOverride'] },
     'print-job': { fold: 'whole', names: PRINT_VALUES },
-    'linuxcnc-rsh': { fold: 'whole', names: ['x', 'y', 'z', 'a', 'b', 'c', 'feedOverride', 'line'] },
+    'linuxcnc-rsh': { fold: 'whole', names: ['x', 'y', 'z', 'a', 'b', 'c', 'jx', 'jy', 'jz', 'ja', 'jb', 'jc', 'feedOverride', 'line'] },
     'centaur-link': { fold: 'whole', names: CENTAUR_VALUES },
     mavlink: { fold: 'merge', names: MAVLINK_VALUES },
 };

@@ -9,6 +9,7 @@
  *             view draws its kinematic chain, one bar per link, posed by forward kinematics from those values.
  * A unit's model without `links` is one rigid mesh (in the pose of its published CAD), so the view draws the chain over it.
  * An unknown state poses nothing: the last values before it are not current, and the view does not draw them.
+ * A world's link may carry a model part on a unit's frame (`frame`, modelPose) instead of driving it by a joint.
  *
  *   "kinematics": { "base_mm": [x, y, z],                   where the chain's base frame sits, in the model's frame
  *                   "base_rpy_deg"?: [r, p, y],             how that frame is turned in the model's frame
@@ -132,11 +133,8 @@ export function jointValue(link, rad, { angle = {}, joint = {} } = {}) {
     const deg = (rad * 180 / Math.PI - zero) / sign;
     return Number(angle.per_turn) > 0 ? (Number.isFinite(joint.home) ? joint.home : 0) + deg * angle.per_turn / 360 : angle.units === 'rad' ? deg * Math.PI / 180 : deg;
 }
-/**
- * Forward kinematics of a declared chain from joint values ({ name: value }): the points [base, after link 1, …] in
- * the model's frame (mm), or null when a chained joint has no value (then the view draws nothing: a guess is not a pose).
- */
-export function chainPoints(kinematics, values, joints = []) {
+/** The one walk of a chain: the points [base, after link 1, …] and the frame at its end, or null (see chainPoints). */
+function walkChain(kinematics, values, joints = []) {
     const links = kinematics?.links;
     if (!Array.isArray(links) || !links.length)
         return null;
@@ -155,9 +153,109 @@ export function chainPoints(kinematics, values, joints = []) {
         move(kinematics.tip_mm);
         points.push(p);
     }
-    return points.every(q => q.every(Number.isFinite)) ? points : null;
+    return points.every(q => q.every(Number.isFinite)) ? { points, R, p } : null;
+}
+/**
+ * Forward kinematics of a declared chain from joint values ({ name: value }): the points [base, after link 1, …] in
+ * the model's frame (mm), or null when a chained joint has no value (then the view draws nothing: a guess is not a pose).
+ */
+export function chainPoints(kinematics, values, joints = []) {
+    return walkChain(kinematics, values, joints)?.points ?? null;
+}
+/**
+ * Where the end of a chain is and how it is turned: the tool frame a part rides on (the flange of an arm), as
+ * { R, p } in the model's frame. Null when a chained joint has no value: a frame with no pose places nothing.
+ */
+export function chainFrame(kinematics, values, joints = []) {
+    const w = walkChain(kinematics, values, joints);
+    return w ? { R: w.R, p: w.p } : null;
+}
+/**
+ * Which way each chained joint moves the tool point at a pose (docs/realtime-agents.md § robots): the words a joint
+ * needs whose meaning depends on the pose (a lift raises the tip in one pose and lowers it in another). At `values`,
+ * each chained joint moves one `step` toward each end of its range, as the channel's `joints` declare them, and the
+ * tool point's move is said as up or down, forward or back along the arm's reach at the pose, left or right of it
+ * (the same left as the pan's declared words: up x forward).
+ * → { base, tip, forward, left, step, joints: [{ joint, value, low, high, toward: { min: way, max: way } }] }, or null
+ * when a chained joint has no value (no pose, no words). `forward` (the reach at the pose) and `left` are the two
+ * horizontal unit directions a word is about. A `way` is { words: ['up', …], mm, steps }, or { atEnd: true } for a
+ * joint already at that end of its range. Derived from the declared chain: nothing here was measured on a machine.
+ */
+export function tipWays(kinematics, values, joints = [], { step = 100 } = {}) {
+    const points = chainPoints(kinematics, values, joints);
+    if (!points)
+        return null;
+    const base = points[0], tip = points.at(-1);
+    const [rx, ry] = [tip[0] - base[0], tip[1] - base[1]], reach = Math.hypot(rx, ry);
+    const forward = reach > 1e-6 ? [rx / reach, ry / reach] : [1, 0], left = [-forward[1], forward[0]];
+    const tipAt = v => chainPoints(kinematics, v, joints)?.at(-1) ?? null;
+    const said = d => {
+        const mm = Math.hypot(...d), up = d[2], along = d[0] * forward[0] + d[1] * forward[1], side = d[0] * left[0] + d[1] * left[1];
+        const most = Math.max(Math.abs(up), Math.abs(along), Math.abs(side));
+        const words = [];
+        // A move at least half as big as the largest one is said too: a lift usually raises the tip and pulls it back.
+        // Below 2 mm a joint only jostles the tip (a roll about the tool's own axis), so it gets no direction.
+        if (mm >= 2) {
+            if (Math.abs(up) >= 0.5 * most) words.push(up > 0 ? 'up' : 'down');
+            if (Math.abs(along) >= 0.5 * most) words.push(along > 0 ? 'forward' : 'back');
+            if (Math.abs(side) >= 0.5 * most) words.push(side > 0 ? 'left' : 'right');
+        }
+        return { words, mm: Math.round(mm * 10) / 10 };
+    };
+    return {
+        base, tip, forward, left, step,
+        joints: (kinematics.links ?? []).map(link => {
+            const declared = joints.find(j => j.name === link.joint) ?? {}, value = values[link.joint];
+            const low = Number.isFinite(declared.min) ? declared.min : value - step, high = Number.isFinite(declared.max) ? declared.max : value + step;
+            const clamped = v => Math.min(Math.max(v, low), high), way = v => {
+                if (v === value)
+                    return { atEnd: true };
+                const p = tipAt({ ...values, [link.joint]: v });
+                return p ? { ...said([p[0] - tip[0], p[1] - tip[1], p[2] - tip[2]]), steps: Math.abs(v - value) } : { words: [], mm: 0, steps: 0 };
+            };
+            return { joint: link.joint, value, low, high, toward: { min: way(clamped(value - step)), max: way(clamped(value + step)) } };
+        }),
+    };
 }
 const JOINT_TYPES = ['revolute', 'prismatic'];
+const FRAME_POINTS = ['tip', 'tool'];
+/**
+ * The problems with a link that rides on a unit's frame (empty when it is well formed), given the channels its ids name
+ * (`<unit>/<channel>`): the world's link grammar for a part that is carried by a unit rather than by the model (the
+ * gripper on the arm's flange). The frame is the part's parent, so it has no `parent`, and a joint does not drive it.
+ */
+function checkFrameLink(l, channels) {
+    const f = l.frame, problems = [];
+    const probe = (fn, where) => { try {
+        fn();
+    }
+    catch (e) {
+        problems.push(`${where}: ${e.message.replace(/^kinematics: /, '')}`);
+    } };
+    if (!f || typeof f !== 'object' || Array.isArray(f))
+        return ['frame must name the unit and channel whose frame the part rides on'];
+    if (l.joint !== undefined)
+        problems.push('a part is driven by a joint or rides on a unit\'s frame, not both');
+    if (l.parent !== undefined)
+        problems.push('a part on a unit\'s frame has no parent link: the frame is its parent');
+    if (typeof f.unit !== 'string' || !f.unit)
+        problems.push('frame.unit must name the unit whose frame the part rides on');
+    if (typeof f.channel !== 'string' || !f.channel)
+        problems.push('frame.channel must name the channel whose frame the part rides on');
+    if (!FRAME_POINTS.includes(f.at))
+        problems.push('frame.at must be tip (the end of the channel\'s kinematic chain) or tool (its tool point)');
+    probe(() => rpyMatrix(f.rpy_deg), 'frame.rpy_deg');
+    probe(() => vec3(f.offset_mm, 'frame.offset_mm'), 'frame.offset_mm');
+    // A world's links are checked joined (`<unit>/<channel>`) and a definition's unjoined: a message says the channel
+    // as the link names it.
+    const named = typeof f.channel === 'string' && typeof f.unit === 'string' && f.channel.startsWith(`${f.unit}/`) ? f.channel.slice(f.unit.length + 1) : f.channel;
+    const c = typeof f.unit === 'string' && typeof named === 'string' ? channels.find(x => x.id === `${f.unit}/${named}`) : null;
+    if (c && f.at === 'tip' && !Array.isArray(c.kinematics?.links))
+        problems.push(`channel ${named} declares no kinematics: it has no tip to ride on`);
+    if (c && f.at === 'tool' && !c.tool)
+        problems.push(`channel ${named} declares no tool point`);
+    return problems;
+}
 const IDENTITY = () => ({ R: [[1, 0, 0], [0, 1, 0], [0, 0, 1]], p: [0, 0, 0] });
 /**
  * The problems with a definition's `links` (an empty list when it is well formed): every link names a node once, its
@@ -199,6 +297,8 @@ export function checkLinks(links, channels = [], nodes = null) {
         }
         if (l.emit !== undefined)
             problems.push(...checkEmit(l.emit, channels).map(p => `${where}: ${p}`));
+        if (l.frame !== undefined)
+            problems.push(...checkFrameLink(l, channels).map(p => `${where}: ${p}`));
         const j = l.joint;
         if (j === undefined)
             continue;
@@ -261,13 +361,24 @@ export function jointPosition(joint, value, channelJoint = {}) {
  * `channels` gives the channel joints' `home` for raw steps; `travel` is { 'channel.name': degrees or mm } for rate
  * joints (rateTravel). Also which joints were posed, which stayed as drawn for want of a value (held), which moved by
  * a rate (spun), which no channel drives (undriven), and each emitting node's glow: Map(node -> [r, g, b]).
+ * `frames` (Map(node -> { R, p })) gives the node that rides on a unit's frame its place from that unit's own pose;
+ * a node without an entry stays as drawn (that unit's state is not known), and its children with it.
  */
-export function linkTransforms(links, values = {}, channels = [], { travel = {} } = {}) {
+export function linkTransforms(links, values = {}, channels = [], { travel = {}, frames = null } = {}) {
     const byNode = new Map(links.map(l => [l.node, l])), out = new Map(), posed = [], held = [], spun = [], undriven = [], glow = new Map();
     const solve = node => {
         if (out.has(node))
             return out.get(node);
-        const l = byNode.get(node), parent = l.parent !== undefined ? solve(l.parent) : IDENTITY(), j = l.joint;
+        const l = byNode.get(node), j = l.joint;
+        // A part that rides on a unit's frame takes its place from that unit's pose, in the frame the model is drawn in;
+        // without one (no state, or a unit not named) it stays where the model draws it, and so do its children.
+        if (l.frame !== undefined) {
+            const given = frames?.get(node), m = given ?? IDENTITY();
+            (given ? posed : held).push(`${l.frame.channel}@${l.frame.at}`);
+            out.set(node, m);
+            return m;
+        }
+        const parent = l.parent !== undefined ? solve(l.parent) : IDENTITY();
         let local = IDENTITY();
         if (j) {
             const cj = channels.find(c => c.id === j.channel)?.joints?.find(x => x.name === j.name) ?? {}, key = `${j.channel}.${j.name}`;
@@ -325,13 +436,16 @@ export function poseNodes(meshes, nodes, root = null) {
  *      skeleton: { channel, points: [[x, y, z] world mm], status, since } | null,
  *      nodes: linkTransforms' result (nodes in the model's frame, posed, held, spun, undriven, glow) | null,
  *      root: { channel, R, p, status, since } in the model's frame | null (no root, or its values are not known),
+ *      frames: { [channel id]: { at: 'tool' | 'tip', R, p, status, since } } in the world,
  *      unknown: [channel ids whose state is unknown at t] }
  * Each channel's values are folded by its format (motion.js foldMotion). A joint whose channel has no known state stays
  * as the model is drawn; a root without its values leaves the unit at its placement. The tool and the chain move with
- * the root.
+ * the root. `frames` is where a part rides on this unit (a world's link with a `frame`): the tool point of a `tool`
+ * channel, and the end of a declared chain with how it is turned (chainFrame).
  */
-export function unitPose(unit, channels, recordsOf, t, { links = null, root = null } = {}) {
+export function unitPose(unit, channels, recordsOf, t, { links = null, root = null, frames = null } = {}) {
     let tool = null, joints = null, skeleton = null, body = null;
+    const frameOf = {};
     const unknown = [], values = {}, folded = {}, bound = new Set([...(links ?? []).flatMap(l => [l.joint?.channel, ...[l.emit ?? []].flat().map(e => e.channel)]), root?.channel].filter(Boolean));
     for (const c of channels) {
         const records = recordsOf(c.id);
@@ -354,6 +468,11 @@ export function unitPose(unit, channels, recordsOf, t, { links = null, root = nu
             body = { channel: root.channel, ...T, status: folded[root.channel].status, since: folded[root.channel].at };
     }
     const place = q => placePoint(unit, body, q);
+    // A frame's place and turning in the world: the body's and the placement's motion on the model's own frame.
+    const placed = at => F => {
+        const R = matMul(rotation('z', unit.rotation ?? 0), matMul(body?.R ?? IDENTITY().R, F.R));
+        return { at, R, p: place(F.p) };
+    };
     for (const c of channels) {
         const st = folded[c.id], v = st?.values;
         if (!st)
@@ -361,6 +480,7 @@ export function unitPose(unit, channels, recordsOf, t, { links = null, root = nu
         if (c.tool && !tool && ['x', 'y', 'z'].every(k => Number.isFinite(v[k]))) {
             const sign = c.tool.sign ?? [1, 1, 1], local = c.tool.origin_mm.map((o, i) => o + sign[i] * v['xyz'[i]]);
             tool = { channel: c.id, at: place(local), machine: { x: v.x, y: v.y, z: v.z }, status: st.status, since: st.at };
+            frameOf[c.id] = { ...placed('tool')({ R: IDENTITY().R, p: local }), status: st.status, since: st.at };
         }
         if (c.format === 'servo-bus' && Array.isArray(c.joints) && !joints) {
             const list = c.joints.filter(j => Number.isFinite(v[j.name])).map(j => ({ name: j.name, value: v[j.name], min: j.min, max: j.max, gripper: !!j.gripper, frac: Number.isFinite(j.min) && Number.isFinite(j.max) && j.max > j.min ? Math.max(0, Math.min(1, (v[j.name] - j.min) / (j.max - j.min))) : null }));
@@ -371,6 +491,9 @@ export function unitPose(unit, channels, recordsOf, t, { links = null, root = nu
             const local = chainPoints(c.kinematics, v, c.joints ?? []);
             if (local)
                 skeleton = { channel: c.id, points: local.map(place), status: st.status, since: st.at };
+            const frame = chainFrame(c.kinematics, v, c.joints ?? []);
+            if (frame)
+                frameOf[c.id] = { ...placed('tip')(frame), status: st.status, since: st.at };
         }
     }
     const travel = {};
@@ -379,7 +502,7 @@ export function unitPose(unit, channels, recordsOf, t, { links = null, root = nu
         if (d !== null)
             travel[`${j.channel}.${j.name}`] = d;
     }
-    return { tool, joints, skeleton, nodes: links?.length ? linkTransforms(links, values, channels, { travel }) : null, root: body, unknown };
+    return { tool, joints, skeleton, frames: frameOf, nodes: links?.length ? linkTransforms(links, values, channels, { travel, frames }) : null, root: body, unknown };
 }
 /** A point of a unit's model frame in the world: the root's body motion (`body`: { R, p } or null), then the placement. */
 export const placePoint = (unit, body, q) => rotate(body ? apply(body.R, q).map((v, i) => v + body.p[i]) : q, unit.rotation ?? 0).map((p, i) => p + (unit.position?.[i] ?? 0));
@@ -513,15 +636,17 @@ export function toolMarker(at, uid, { size = 24, color = [1, .55, .12] } = {}) {
  * and each joint and emit names its unit as well as its channel: `{ unit, channel, name, … }`. The axes and origins
  * are in the world's frame, where the model is drawn. One code path: each bound channel becomes the channel
  * `<uid>/<id>` of one tree, posed by unitPose and linkTransforms as a unit's own links are.
+ * A link with a `frame` (`{ unit, channel, at: 'tip' | 'tool', offset_mm?, rpy_deg? }`) instead rides on a unit: the
+ * part is carried by the end of that unit's chain, or by its tool point, so a gripper follows the arm's flange.
  */
-const boundOf = l => [l?.joint, ...[l?.emit ?? []].flat()].filter(e => e && e.channel !== undefined);
+const boundOf = l => [l?.joint, ...[l?.emit ?? []].flat(), l?.frame].filter(e => e && e.channel !== undefined);
 const joined = e => {
     if (!e || e.channel === undefined)
         return e;
     const { unit, ...rest } = e;
     return { ...rest, channel: `${unit}/${e.channel}` };
 };
-const joinedLinks = links => links.map(l => ({ ...l, ...(l.joint ? { joint: joined(l.joint) } : {}), ...(l.emit !== undefined ? { emit: Array.isArray(l.emit) ? l.emit.map(joined) : joined(l.emit) } : {}) }));
+const joinedLinks = links => links.map(l => ({ ...l, ...(l.joint ? { joint: joined(l.joint) } : {}), ...(l.emit !== undefined ? { emit: Array.isArray(l.emit) ? l.emit.map(joined) : joined(l.emit) } : {}), ...(l.frame !== undefined ? { frame: { ...l.frame, channel: `${l.frame.unit}/${l.frame.channel}` } } : {}) }));
 /** The channels the links read, each as `<uid>/<id>`; `channelsOfUnit(uid)` gives a unit's channels (channelsOf) or null. */
 function boundChannels(links, channelsOfUnit) {
     const out = new Map();
@@ -547,7 +672,7 @@ export function checkModelLinks(links, units, channelsOfUnit, nodes = null) {
         for (const e of boundOf(l)) {
             const where = `link ${l.node ?? i}`;
             if (typeof e.unit !== 'string')
-                problems.push(`${where}: a joint or emit of the world's model names its unit`);
+                problems.push(`${where}: a joint, emit or frame of the world's model names its unit`);
             else if (!uids.has(e.unit))
                 problems.push(`${where}: unit ${e.unit} is not in the world`);
             else if (!channelsOfUnit(e.unit)?.some(c => c.id === e.channel))
@@ -561,19 +686,37 @@ export function checkModelLinks(links, units, channelsOfUnit, nodes = null) {
  *     glow: Map(part -> rgb), unknown: [{ unit, channel }] whose state is unknown at t, unknownParts: Set of parts }
  * A part whose own channel, or the channel of a link above it, is unknown at t stays where the model draws it and is in
  * `unknownParts`: its place is not known, so it is not guessed. A part whose channel has no records stays as drawn.
+ * `units` (the world's units) gives the placement a part on a unit's frame rides with: a part rides on a unit's pose,
+ * so without its placement (or with the unit's state unknown) it stays as drawn, marked unknown.
  */
-export function modelPose(links, channelsOfUnit, recordsOf, t) {
+export function modelPose(links, channelsOfUnit, recordsOf, t, { units = null } = {}) {
     const tree = joinedLinks(links), channels = boundChannels(links, channelsOfUnit);
     const split = id => { const i = id.indexOf('/'); return [id.slice(0, i), id.slice(i + 1)]; };
-    const p = unitPose({ uid: 'model', position: [0, 0, 0], rotation: 0 }, channels, id => recordsOf(...split(id)), t, { links: tree });
-    const lost = new Set(p.unknown), byNode = new Map(tree.map(l => [l.node, l]));
-    const own = l => boundOf(l).some(e => lost.has(e.channel));
+    // A part on a unit's frame: the world transform of each such node, from that unit's own pose (unitPose, frames).
+    const known = new Map((units ?? []).map(u => [u.uid, u])), poses = new Map(), frames = new Map(), frameLost = [];
+    for (const l of tree.filter(l => l.frame !== undefined)) {
+        const { unit, channel, at } = l.frame, raw = channel.startsWith(`${unit}/`) ? channel.slice(unit.length + 1) : channel, u = known.get(unit);
+        if (!u) {
+            frameLost.push({ unit, channel: raw });
+            continue;
+        }
+        if (!poses.has(unit))
+            poses.set(unit, unitPose(u, channelsOfUnit(unit) ?? [], id => recordsOf(unit, id), t));
+        const f = poses.get(unit).frames[raw];
+        if (!f || f.at !== at)
+            continue;
+        const off = vec3(l.frame.offset_mm, 'frame.offset_mm'), R = matMul(f.R, rpyMatrix(l.frame.rpy_deg)), moved = apply(f.R, off);
+        frames.set(l.node, { R, p: f.p.map((v, i) => v + moved[i]) });
+    }
+    const p = unitPose({ uid: 'model', position: [0, 0, 0], rotation: 0 }, channels, id => recordsOf(...split(id)), t, { links: tree, frames });
+    const lost = new Set(p.unknown), misplaced = new Set(frameLost.map(f => `${f.unit}/${f.channel}`)), byNode = new Map(tree.map(l => [l.node, l]));
+    const own = l => boundOf(l).some(e => lost.has(e.channel) || misplaced.has(e.channel));
     const above = l => { for (let at = l, n = 0; at && n < 64; at = byNode.get(at.parent), n++)
         if (own(at))
             return true; return false; };
     const unknownParts = new Set(tree.filter(above).map(l => l.node));
     const keep = m => new Map([...(m ?? [])].filter(([n]) => !unknownParts.has(n)));
-    return { nodes: keep(p.nodes?.nodes), posed: p.nodes?.posed ?? [], spun: p.nodes?.spun ?? [], glow: keep(p.nodes?.glow), unknown: p.unknown.map(id => { const [unit, channel] = split(id); return { unit, channel }; }), unknownParts };
+    return { nodes: keep(p.nodes?.nodes), posed: p.nodes?.posed ?? [], spun: p.nodes?.spun ?? [], glow: keep(p.nodes?.glow), unknown: [...p.unknown.map(id => { const [unit, channel] = split(id); return { unit, channel }; }), ...frameLost].filter((u, i, all) => all.findIndex(v => v.unit === u.unit && v.channel === u.channel) === i), unknownParts };
 }
 /**
  * The model's meshes (named by part) at a modelPose: each linked part moved, a lit part glowing, and a part in an
