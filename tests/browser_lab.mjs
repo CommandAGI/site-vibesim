@@ -1,4 +1,5 @@
-// The site in Chrome: each locale's home page loads with nothing thrown, the lab runs a description to its goal, the
+// The site in Chrome: each locale's home page loads with nothing thrown, the hero's swarm reads a sentence, the four
+// verbs scene follows the scroll, the lab runs a description to its goal, the
 // language dialog opens with the three locales, and no page scrolls sideways at 390 px.
 // Run: node tests/browser_lab.mjs (CHROME_PATH names the binary; it serves the folder on 127.0.0.1).
 // Or: SITE_URL=https://vibesim.commandagi.app node tests/browser_lab.mjs — the same checks against a deployed site.
@@ -10,7 +11,7 @@ import { extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
-const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml' };
+const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.png': 'image/png', '.jpg': 'image/jpeg', '.mp4': 'video/mp4', '.webm': 'video/webm' };
 const PAGES = [
     { path: '/', reached: 'Reached', lang: 'en' },
     { path: '/es/', reached: 'Alcanzado', lang: 'es' },
@@ -108,6 +109,22 @@ try {
             await page.evaluate(`document.querySelector('[data-preset="unreachable"]').click(); document.getElementById('run').click()`);
             const far = await page.evaluate(`new Promise(ok => { const t0 = performance.now(); const tick = () => { const s = document.getElementById('status').textContent; if (/reach|alcance|可达/.test(s) && !s.includes(${JSON.stringify(reached)})) return ok(s); if (performance.now() - t0 > 15000) return ok('timeout: ' + s); requestAnimationFrame(tick); }; tick(); })`);
             if (!far || far.startsWith('timeout')) problems.push(`${path}: an unreachable goal was not reported: ${far}`);
+            // The hero: a sentence typed and sent rebuilds the swarm, and the page says what it read.
+            const swarm = await page.evaluate(`new Promise(ok => {
+                const input = document.getElementById('sentence'), form = document.getElementById('describe');
+                input.value = '200 swirl'; form.requestSubmit();
+                setTimeout(() => {
+                    const c = document.getElementById('swarm'), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+                    let lit = 0; for (let i = 0; i < d.length; i += 4) if (d[i] + d[i + 1] + d[i + 2] > 120) lit++;
+                    ok({ understood: document.getElementById('understood').textContent, count: document.getElementById('count').textContent, lit });
+                }, 600);
+            })`);
+            if (!/200/.test(swarm.understood) || !/200|1[0-9]{2}/.test(swarm.count)) problems.push(`${path}: the swarm did not read the sentence: ${JSON.stringify(swarm)}`);
+            if (swarm.lit < 200) problems.push(`${path}: the swarm canvas is dark (${swarm.lit} lit pixels)`);
+            // The four verbs: scrolled to its end, the scene shows "inspect" and the rail marks it.
+            const phase = await page.evaluate(`new Promise(ok => { const v = document.getElementById('verbs'); scrollTo(0, v.offsetTop + v.offsetHeight - innerHeight - 2); setTimeout(() => ok({ phase: v.dataset.phase, rail: document.querySelector('[data-rail][aria-current]')?.dataset.rail }), 400); })`);
+            if (phase.phase !== 'inspect' || phase.rail !== '3') problems.push(`${path}: the verbs scene at its end ${JSON.stringify(phase)}`);
+            await page.evaluate(`scrollTo(0, 0)`);
             // The language dialog.
             const langs = await page.evaluate(`(() => { document.querySelector('.lang-btn').click(); const d = document.getElementById('lang-dialog'); return { open: d.open, links: [...d.querySelectorAll('a')].map(a => a.getAttribute('hreflang')) }; })()`);
             if (!langs.open || langs.links.join(',') !== 'en,es,zh-Hans') problems.push(`${path}: the language dialog ${JSON.stringify(langs)}`);
@@ -131,4 +148,4 @@ if (problems.length) {
     for (const p of problems) console.error(' - ' + p);
     process.exit(1);
 }
-console.log(`browser_lab: ${PAGES.length} pages, the bench ran a reach and an out-of-reach goal in each locale, the dialog listed en/es/zh-Hans, nothing scrolled sideways and nothing threw.`);
+console.log(`browser_lab: ${PAGES.length} pages, the bench ran a reach and an out-of-reach goal in each locale, the swarm read a sentence, the verbs scene reached inspect, the dialog listed en/es/zh-Hans, nothing scrolled sideways and nothing threw.`);

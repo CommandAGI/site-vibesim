@@ -6,14 +6,21 @@ CommandAGI's site hosting at <https://vibesim.commandagi.app>, mounted on the or
 
 | path | what |
 |---|---|
-| `index.html` | the home page and the lab, in English (`/`) |
+| `index.html` | the home page in English (`/`): the swarm hero, the four verbs, the lab, the format, contact |
 | `es/index.html`, `zh-Hans/index.html` | the same page in Spanish and Simplified Chinese, at `/es/` and `/zh-Hans/` |
+| `tools/pages.mjs` | writes the three home pages from one template and one strings table (`node tools/pages.mjs`); edit it, not the pages |
 | `docs/index.html` (and its `es/`, `zh-Hans/`) | the description format: the fields, what a run does, what the bench reports, its limits |
-| `lab/lab.js` | the bench: reads the description, solves the goal, steps the servos at 1 kHz, draws the arm on a canvas |
+| `lab/lab.js` | the bench: reads the description, solves the goal, steps the servos at 1 kHz, draws the arm and the joint traces |
+| `lab/swarm.js`, `lab/describe.js` | the hero: a boids swarm rebuilt from the visitor's sentence by a word parser (not a language model) |
+| `lab/verbs.js`, `lab/draw.js` | the four verbs scrubbed by scroll (the bench's own pick run); the drawing both share |
+| `lab/page.js` | the generated clips load and play only in view, never with reduced motion; the phase rail |
+| `media/` | the two generated clips (AV1 + H.264, posters); `tools/media.mjs` made them (fal, at build time) |
+| `fonts/` | Unbounded and Onest, subset woff2, with their OFL licences |
+| `redesign/` | the 2027 redesign: `CONTENT.md` (audit), `DESIGN.md` (the spec), `NOTES.md` (media, cost, review) |
 | `engine/` | CommandAGI's simulation core, copied verbatim (provenance and the exact commit in `engine/README.md`) |
-| `style.css`, `mark.svg` | one stylesheet (dark by preference, light by the system), the mark |
+| `style.css`, `mark.svg`, `wordmark.svg` | one stylesheet (dark only), the mark (favicon), the wordmark; `og.png`, `touch-icon.png` |
 
-Every page is static, has no external font, script, stylesheet or tracker, and no page sends anything: the simulation
+Every page is static, has no external font, script, stylesheet or tracker (the fonts are served from `fonts/`), and no page sends anything: the simulation
 runs in the visitor's tab. The language button (A/文) in the footer opens a dialog listing the three locales as plain
 links to each locale's static pages; without script it lists the same links.
 

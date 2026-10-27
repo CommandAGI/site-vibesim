@@ -1,10 +1,11 @@
 // The bench and the site's pages. Run: node --test tests/lab.test.mjs (Node 22 or 24).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createBench, PRESETS } from '../lab/bench.js';
+import { describeSwarm, SWARM_DEFAULTS, COUNT_RANGE } from '../lab/describe.js';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const channel = JSON.parse(readFileSync(resolve(root, 'engine/machines/so101.json'), 'utf8'));
@@ -54,6 +55,21 @@ test('a description is refused, with a plain reason, when it does not say enough
     assert.throws(() => bench.readDescription(bad(d => ({ ...d, payload_g: -5 }))), /payload_g must be/);
 });
 
+test('the hero reads a sentence into the swarm, says what it understood, and nothing more', () => {
+    const d = describeSwarm('600 boids, scared of the cursor, slow, warm');
+    assert.deepEqual(d.params, { ...SWARM_DEFAULTS, count: 600, cursor: -1, speed: 0.5, warmth: 1 });
+    assert.deepEqual(d.understood, ['600', 'slow', 'fears the cursor', 'warm']);
+    // The same in the other two locales the page speaks.
+    assert.deepEqual(describeSwarm('300 boids con miedo, lentos, fríos').understood, ['300', 'slow', 'fears the cursor', 'cold']);
+    assert.deepEqual(describeSwarm('300 只，跟随光标，快，漩涡').understood, ['300', 'fast', 'follows the cursor', 'swirl']);
+    // A word inside another word is not read: "nice photo device" holds "ice", "hot" and "ice" again.
+    assert.deepEqual(describeSwarm('a nice photo of a device').understood, []);
+    assert.deepEqual(describeSwarm('').params, SWARM_DEFAULTS);
+    // A count outside the range is clamped, and the readout says so.
+    assert.equal(describeSwarm('99999 boids').params.count, COUNT_RANGE[1]);
+    assert.deepEqual(describeSwarm('5 boids').understood, [`5 → ${COUNT_RANGE[0]}`]);
+});
+
 // The pages: the same three locales, each complete, each linking to the others, with nothing from another origin.
 const PAGES = [
     { file: 'index.html', lang: 'en', base: '' },
@@ -69,7 +85,7 @@ test('every page is in its locale, loads only this site, and every link and asse
     for (const { file, lang, base } of PAGES) {
         const html = read(file);
         assert.match(html, new RegExp(`<html lang="${lang}">`), `${file}: the page's language`);
-        const refs = [...html.matchAll(/(?:href|src)="([^"]+)"/g)].map(m => m[1].replace(/[?#].*$/, ''))
+        const refs = [...html.matchAll(/(?:href|src|poster)="([^"]+)"/g)].map(m => m[1].replace(/[?#].*$/, ''))
             .filter(u => u && !u.startsWith('mailto:') && !u.startsWith('https://vibesim.commandagi.app') && !u.startsWith('/'));
         assert.ok(refs.length, `${file}: it names its stylesheet and script`);
         for (const ref of refs) {
@@ -95,6 +111,20 @@ test('the language dialog lists all three locales on every page, in their own na
     }
 });
 
+test('every generated clip has a poster, an AV1 and an H.264 source under 3 MB, plays muted and loads lazily', () => {
+    for (const file of ['index.html', 'es/index.html', 'zh-Hans/index.html']) {
+        const videos = [...read(file).matchAll(/<video[\s\S]*?<\/video>/g)].map(m => m[0]);
+        assert.equal(videos.length, 2, `${file}: two clips`);
+        for (const v of videos) {
+            assert.match(v, /\bmuted\b/); assert.match(v, /\bplaysinline\b/); assert.match(v, /preload="none"/); assert.match(v, /poster="/);
+            assert.doesNotMatch(v, /\bautoplay\b/, 'played by script only in view, never with reduced motion');
+            const sources = [...v.matchAll(/data-src="([^"]+)"/g)].map(m => resolve(root, dirname(file), m[1]));
+            assert.deepEqual(sources.map(s => s.slice(-4)), ['webm', '.mp4']);
+            for (const s of sources) assert.ok(statSync(s).size < 3e6, `${s}: ${statSync(s).size} bytes`);
+        }
+    }
+});
+
 test('the two home pages carry the lab: the canvas, the description, and the three examples', () => {
     for (const file of ['index.html', 'es/index.html', 'zh-Hans/index.html']) {
         const html = read(file);
@@ -102,5 +132,7 @@ test('the two home pages carry the lab: the canvas, the description, and the thr
         assert.match(html, /<textarea id="scene"/, `${file}: the description`);
         for (const preset of ['reach', 'pick', 'unreachable']) assert.ok(html.includes(`data-preset="${preset}"`), `${file}: ${preset}`);
         assert.match(html, /<script type="module" src="[^"]*lab\/lab\.js"/, `${file}: the bench's script`);
+        assert.match(html, /<canvas id="traces"/, `${file}: the joint traces`);
+        assert.match(html, /<input class="prompt__input" id="sentence"/, `${file}: the hero's sentence`);
     }
 });

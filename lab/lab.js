@@ -6,7 +6,8 @@
  * back at real speed and states the result. Nothing is sent anywhere.
  */
 import { createBench, PRESETS } from './bench.js';
-import { forward, robotState, stepRobot, chainPoints } from '../engine/sim-robots.js';
+import { forward, robotState, stepRobot } from '../engine/sim-robots.js';
+import { palette, projector, drawArm, drawTraces } from './draw.js';
 
 const STRINGS = {
     en: {
@@ -44,87 +45,38 @@ const GRAVITY = [0, 0, -9.81];
 
 const canvas = document.getElementById('stage');
 const ctx = canvas.getContext('2d');
+const tracesCanvas = document.getElementById('traces');
+const tctx = tracesCanvas?.getContext('2d');
 const scene = document.getElementById('scene');
 const hud = document.getElementById('hud');
 const statusEl = document.getElementById('status');
 const runBtn = document.getElementById('run');
 const stepBtn = document.getElementById('step');
 const resetBtn = document.getElementById('reset');
-const colour = (() => {
-    const css = getComputedStyle(document.documentElement);
-    const get = (n, fallback) => css.getPropertyValue(n).trim() || fallback;
-    return { grid: get('--grid', '#1d2329'), link: get('--link', '#e8eef3'), joint: get('--joint', '#8fa3b5'), accent: get('--accent', '#2bd9c0'), miss: get('--miss', '#e2684f'), trace: get('--trace', '#2b5c55') };
-})();
+const colour = palette();
+// The traces are drawn at the size they are shown, so their labels stay readable on a phone.
+function fitTraces() {
+    if (!tracesCanvas) return;
+    const dpr = Math.min(devicePixelRatio || 1, 2), w = tracesCanvas.getBoundingClientRect().width;
+    if (!w) return;
+    tracesCanvas.width = Math.round(w * dpr); tracesCanvas.height = Math.round(Math.min(240, Math.max(150, w * 0.3)) * dpr);
+    traceScale = dpr;
+}
+let traceScale = 1;
 
 const channel = await fetch(new URL('../engine/machines/so101.json', import.meta.url)).then(r => r.json());
 const bench = createBench(channel);
 const camera = { yaw: -0.62, pitch: 0.34 };
+const project = projector(canvas, camera);
 let run = null;      // the computed run, the frame shown, whether it is playing
 let payload = 0;     // grams in the gripper
 
 const mm = p => p.map(x => Math.round(x * 1000));
 const mmText = p => mm(p).join(', ');
 
-function project(p) {
-    const cy = Math.cos(camera.yaw), sy = Math.sin(camera.yaw);
-    const x1 = p[0] * cy - p[1] * sy, y1 = p[0] * sy + p[1] * cy;
-    const cp = Math.cos(camera.pitch), sp = Math.sin(camera.pitch);
-    const scale = Math.min(canvas.width, canvas.height) * 2.1;
-    return [canvas.width / 2 + x1 * scale, canvas.height * 0.62 - (p[2] * cp - y1 * sp) * scale];
-}
-
-function line(a, b, style, width) {
-    const [ax, ay] = project(a), [bx, by] = project(b);
-    ctx.strokeStyle = style;
-    ctx.lineWidth = width;
-    ctx.beginPath();
-    ctx.moveTo(ax, ay);
-    ctx.lineTo(bx, by);
-    ctx.stroke();
-}
-
-function dot(p, r, style) {
-    const [x, y] = project(p);
-    ctx.fillStyle = style;
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fill();
-}
-
-function drawFloor() {
-    for (let i = -6; i <= 6; i++) {
-        const t = i * 0.05;
-        line([t, -0.3, 0], [t, 0.3, 0], colour.grid, 1);
-        line([-0.3, t, 0], [0.3, t, 0], colour.grid, 1);
-    }
-}
-
-function drawGoal(goal, ok) {
-    if (!goal) return;
-    const [x, y] = project(goal);
-    ctx.strokeStyle = ok ? colour.accent : colour.miss;
-    ctx.lineWidth = 1.6;
-    ctx.beginPath();
-    ctx.arc(x, y, 9, 0, Math.PI * 2);
-    ctx.moveTo(x - 14, y);
-    ctx.lineTo(x + 14, y);
-    ctx.moveTo(x, y - 14);
-    ctx.lineTo(x, y + 14);
-    ctx.stroke();
-}
-
-/** Draw one pose: the floor, the path so far, the links, the joints, the tool point and the goal. */
 function draw(q, goal, ok, path = []) {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    drawFloor();
-    const fk = forward(bench.model, q, bench.place);
-    const pts = chainPoints(fk, bench.model);
-    for (let i = 1; i < path.length; i++) line(path[i - 1], path[i], colour.trace, 1.5);
-    for (let i = 1; i < pts.length; i++) line(pts[i - 1], pts[i], colour.link, 11);
-    for (let i = 1; i < pts.length - 1; i++) dot(pts[i], 6.5, colour.joint);
-    dot(pts[0], 10, colour.joint);
-    dot(pts.at(-1), 5, colour.accent);
-    drawGoal(goal, ok);
+    drawArm(ctx, project, bench, q, { goal, ok, path, colour });
+    if (tctx && run) drawTraces(tctx, bench, run.frames, { upto: run.i + 1, colour, scale: traceScale });
 }
 
 function show(frame, path) {
@@ -207,6 +159,8 @@ canvas.addEventListener('pointermove', e => {
 });
 canvas.addEventListener('pointerup', () => { dragging = null; });
 
+fitTraces();
+addEventListener('resize', () => { fitTraces(); if (run) show(run.frames[run.i], []); });
 scene.value = JSON.stringify(PRESETS.reach, null, 2);
 attempt(reset)();
 // The page says when the bench is ready: its machine load and the first picture are asynchronous.
